@@ -1,0 +1,22 @@
+version: '2'
+
+volumes:
+  build_volume: {}
+  deps_volume: {}
+  mix_volume: {}
+
+services:
+  test:
+    build: "."
+    volumes:
+      - .:/app
+      - build_volume:/app/_build
+      - deps_volume:/app/deps
+      - mix_volume:/root/.mix
+    links:
+      - postgres
+  postgres:
+    image: "postgres:9.6"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mysecretpassword
