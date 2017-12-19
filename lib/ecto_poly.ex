@@ -102,7 +102,7 @@ defmodule EctoPoly do
       defp load(unquote(name), fields) do
         result =
           unquote(value_type)
-          |> Ecto.Schema.__unsafe_load__(fields |> Map.new, &Ecto.Type.load/2)
+          |> Ecto.Schema.__unsafe_load__(fields |> Map.new, &EctoPoly.load_value/2)
 
         {:ok, result}
       end
@@ -176,13 +176,144 @@ defmodule EctoPoly do
     fields
     |> Enum.reduce(%{}, fn {field, {source, type}}, acc ->
       value = Map.get(struct, field)
+      dumped = dump_value(type, value)
 
-      case Ecto.Type.dump(type, value) do
+      case dumped do
         {:ok, value} ->
           Map.put(acc, source, value)
         :error ->
           raise ArgumentError, "cannot dump `#{inspect value}` as type #{inspect type}"
       end
     end)
+  end
+
+  @doc false
+  def dump_value(type, value) do
+    with {:ok, value} <- Ecto.Type.dump(type, value),
+         {:ok, value} <- transform_dump(type, value)
+    do
+      {:ok, value}
+    else
+      {:error, error} ->
+        {:error, error}
+      :error ->
+        :error
+    end
+  end
+
+  @doc false
+  def load_value(type, value) do
+    with {:ok, value} <- transform_load(type, value),
+         {:ok, value} <- Ecto.Type.load(type, value)
+    do
+      {:ok, value}
+    else
+      {:error, error} ->
+        {:error, error}
+      :error ->
+        :error
+    end
+  end
+
+  defp transform_dump(type, value), do: do_transform_dump(Ecto.Type.type(type), value)
+  defp do_transform_dump(_, nil), do: {:ok, nil}
+  defp do_transform_dump(:decimal, value), do: {:ok, Decimal.to_string(value)}
+  defp do_transform_dump(:time, {hour, minute, second, microsecond}) do
+    result =
+      %Time{hour: hour, minute: minute, second: second, microsecond: {microsecond, 6}}
+      |> Time.to_iso8601
+
+    {:ok, result}
+  end
+  defp do_transform_dump(:naive_datetime, {{year, month, day}, {hour, minute, second, microsecond}}) do
+    result =
+      %NaiveDateTime{year: year, month: month, day: day,		
+        hour: hour, minute: minute, second: second, microsecond: {microsecond, 6}}
+        |> NaiveDateTime.to_iso8601
+
+    {:ok, result}
+  end
+  defp do_transform_dump(:utc_datetime, {{year, month, day}, {hour, minute, second, microsecond}}) do
+    result =
+      %DateTime{year: year, month: month, day: day,		
+        hour: hour, minute: minute, second: second, microsecond: {microsecond, 6},		
+        std_offset: 0, utc_offset: 0, zone_abbr: "UTC", time_zone: "Etc/UTC"}
+        |> DateTime.to_iso8601
+
+    {:ok, result}
+  end
+  defp do_transform_dump({:map, type}, values), do: transform_map(type, values, &transform_dump/2)
+  defp do_transform_dump({:array, type}, values), do: transform_array(type, values, &transform_dump/2)
+  defp do_transform_dump(_, value), do: {:ok, value}
+
+  defp transform_load(type, value), do: do_transform_load(Ecto.Type.type(type), value)
+  defp do_transform_load(_, nil), do: {:ok, nil}
+  defp do_transform_load(:decimal, value), do: {:ok, Decimal.new(value)}
+  defp do_transform_load(:time, value) do
+    with {:ok, %{
+      hour: hour, minute: minute, second: second, microsecond: {microsecond, 6}
+    }} = value |> Time.from_iso8601
+    do
+      {:ok, {hour, minute, second, microsecond}}
+    end
+  end
+  defp do_transform_load(:naive_datetime, value) do
+    with {:ok, %{
+      year: year, month: month, day: day,
+      hour: hour, minute: minute, second: second, microsecond: {microsecond, 6}
+    }} = value |> NaiveDateTime.from_iso8601
+    do
+      {:ok, {{year, month, day}, {hour, minute, second, microsecond}}}
+    end
+  end
+  defp do_transform_load(:utc_datetime, value) do
+    with {:ok, %{
+      year: year, month: month, day: day,
+      hour: hour, minute: minute, second: second, microsecond: {microsecond, 6}
+    }, _} <- value |> DateTime.from_iso8601
+    do
+      {:ok, {{year, month, day}, {hour, minute, second, microsecond}}}
+    end
+  end
+  defp do_transform_load({:map, type}, values), do: transform_map(type, values, &transform_load/2)
+  defp do_transform_load({:array, type}, values), do: transform_array(type, values, &transform_load/2)
+  defp do_transform_load(_, value), do: {:ok, value}
+
+  defp transform_map(type, values, fun) do
+    result =
+      values
+      |> Enum.reduce_while({:ok, []}, fn {key, value}, {:ok, acc} ->
+        case fun.(type, value) do
+          {:ok, result} ->
+            {:cont, {:ok, [{key, result} | acc]}}
+          {:error, error} ->
+            {:halt, {:error, error}}
+          :error ->
+            {:halt, :error}
+        end
+      end)
+
+    with {:ok, result} <- result do
+      {:ok, result |> Map.new}
+    end
+  end
+
+  defp transform_array(type, values, fun) do
+    result =
+      values
+      |> Enum.reduce_while({:ok, []}, fn value, {:ok, acc} ->
+        case fun.(type, value) do
+          {:ok, result} ->
+            {:cont, {:ok, [result | acc]}}
+          {:error, error} ->
+            {:halt, {:error, error}}
+          :error ->
+            {:halt, :error}
+        end
+      end)
+    
+    with {:ok, result} <- result do
+      {:ok, result |> Enum.reverse}
+    end
   end
 end

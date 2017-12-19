@@ -56,7 +56,14 @@ defmodule EctoPolyTest do
   end
 
   describe "with schema" do
-    test "when saving" do
+    test "when saving and loading" do
+      date = DateTime.utc_now()
+      dates = [NaiveDateTime.utc_now(), NaiveDateTime.utc_now()]
+      time_by_name = %{
+        "lol" => Time.utc_now(),
+        "wtf" => Time.utc_now(),
+      }
+
       result =
         %TestSchema{}
         |> TestSchema.changeset(%{
@@ -65,45 +72,31 @@ defmodule EctoPolyTest do
             provider: %TwilioSmsProvider{
               key_id: "id",
               key_secret: "secret",
+              date: date,
+              dates: dates,
+              time_by_name: time_by_name,
+              price: Decimal.new(10.00),
             }
           },
         })
         |> TestRepo.insert!
 
-      assert result.channel == %TestSmsChannel{
+      loaded = TestRepo.one(from o in TestSchema, where: o.id == ^result.id)
+
+      expected = %TestSmsChannel{
         number: "+11234567890",
         provider: %TwilioSmsProvider{
           key_id: "id",
           key_secret: "secret",
+          date: date,
+          dates: dates,
+          time_by_name: time_by_name,
+          price: Decimal.new(10.00),
         }
       }
-    end
 
-    test "when loading" do
-      obj =
-        %TestSchema{}
-        |> TestSchema.changeset(%{
-          channel: %TestSmsChannel{
-            number: "+11234567890",
-            provider: %TwilioSmsProvider{
-              key_id: "id",
-              key_secret: "secret",
-            }
-          },
-        })
-        |> TestRepo.insert!
-
-      result = TestRepo.one(from o in TestSchema, where: o.id == ^obj.id)
-
-      assert %TestSchema{
-        channel: %TestSmsChannel{
-          number: "+11234567890",
-          provider: %TwilioSmsProvider{
-            key_id: "id",
-            key_secret: "secret",
-          }
-        }
-      } = result
+      assert result.channel == expected
+      assert loaded.channel == expected
     end
 
     test "when querying" do
