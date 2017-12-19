@@ -95,14 +95,16 @@ defmodule EctoPoly do
   end
 
   defp loader({name, value_type}) do
-    loader(is_schema?(value_type), name, value_type)
+    value_type
+    |> is_schema?
+    |> loader(name, value_type)
   end
   defp loader(true, name, value_type) do
     quote do
       defp load(unquote(name), fields) do
         result =
           unquote(value_type)
-          |> Ecto.Schema.__unsafe_load__(fields |> Map.new, &EctoPoly.load_value/2)
+          |> Ecto.Schema.__unsafe_load__(fields |> IO.inspect |> Map.new, &EctoPoly.load_value/2)
 
         {:ok, result}
       end
@@ -111,9 +113,7 @@ defmodule EctoPoly do
   defp loader(false, name, value_type) do
     quote do
       defp load(unquote(name), fields) do
-        result =
-          unquote(value_type)
-          |> struct!(fields)
+        result = unquote(value_type) |> struct!(fields)
 
         {:ok, result}
       end
@@ -121,19 +121,24 @@ defmodule EctoPoly do
   end
 
   defp dumper({name, value_type}) do
-    dumper(is_schema?(value_type), name, value_type)
+    value_type
+    |> is_schema?
+    |> dumper(name, value_type)
   end
   defp dumper(true, name, value_type) do
     quote do
       def dump(value = %unquote(value_type){}) do
-        fields = unquote(value_type).__schema__(:dump)
+        embed_type = {:embed, %Ecto.Embedded{
+          cardinality: :one,
+          related: unquote(value_type),
+          field: :data,
+        }}
 
-        result =
-          value
-          |> EctoPoly.dump_schema(fields)
-          |> Map.put(@type_field, Atom.to_string(unquote(name)))
-
-        {:ok, result}
+        with {:ok, result} <- Ecto.Type.dump(embed_type, value, &EctoPoly.dump_value/2),
+             result = result |> Map.put(@type_field, Atom.to_string(unquote(name)))
+        do
+          {:ok, result}
+        end
       end
     end
   end
@@ -172,24 +177,8 @@ defmodule EctoPoly do
   end
 
   @doc false
-  def dump_schema(struct, fields) do
-    fields
-    |> Enum.reduce(%{}, fn {field, {source, type}}, acc ->
-      value = Map.get(struct, field)
-      dumped = dump_value(type, value)
-
-      case dumped do
-        {:ok, value} ->
-          Map.put(acc, source, value)
-        :error ->
-          raise ArgumentError, "cannot dump `#{inspect value}` as type #{inspect type}"
-      end
-    end)
-  end
-
-  @doc false
   def dump_value(type, value) do
-    with {:ok, value} <- Ecto.Type.dump(type, value),
+    with {:ok, value} <- Ecto.Type.dump(type, value, &dump_value/2),
          {:ok, value} <- transform_dump(type, value)
     do
       {:ok, value}
@@ -204,7 +193,7 @@ defmodule EctoPoly do
   @doc false
   def load_value(type, value) do
     with {:ok, value} <- transform_load(type, value),
-         {:ok, value} <- Ecto.Type.load(type, value)
+         {:ok, value} <- Ecto.Type.load(type, value, &load_value/2)
     do
       {:ok, value}
     else
@@ -242,8 +231,6 @@ defmodule EctoPoly do
 
     {:ok, result}
   end
-  defp do_transform_dump({:map, type}, values), do: transform_map(type, values, &transform_dump/2)
-  defp do_transform_dump({:array, type}, values), do: transform_array(type, values, &transform_dump/2)
   defp do_transform_dump(_, value), do: {:ok, value}
 
   defp transform_load(type, value), do: do_transform_load(Ecto.Type.type(type), value)
@@ -275,45 +262,5 @@ defmodule EctoPoly do
       {:ok, {{year, month, day}, {hour, minute, second, microsecond}}}
     end
   end
-  defp do_transform_load({:map, type}, values), do: transform_map(type, values, &transform_load/2)
-  defp do_transform_load({:array, type}, values), do: transform_array(type, values, &transform_load/2)
   defp do_transform_load(_, value), do: {:ok, value}
-
-  defp transform_map(type, values, fun) do
-    result =
-      values
-      |> Enum.reduce_while({:ok, []}, fn {key, value}, {:ok, acc} ->
-        case fun.(type, value) do
-          {:ok, result} ->
-            {:cont, {:ok, [{key, result} | acc]}}
-          {:error, error} ->
-            {:halt, {:error, error}}
-          :error ->
-            {:halt, :error}
-        end
-      end)
-
-    with {:ok, result} <- result do
-      {:ok, result |> Map.new}
-    end
-  end
-
-  defp transform_array(type, values, fun) do
-    result =
-      values
-      |> Enum.reduce_while({:ok, []}, fn value, {:ok, acc} ->
-        case fun.(type, value) do
-          {:ok, result} ->
-            {:cont, {:ok, [result | acc]}}
-          {:error, error} ->
-            {:halt, {:error, error}}
-          :error ->
-            {:halt, :error}
-        end
-      end)
-    
-    with {:ok, result} <- result do
-      {:ok, result |> Enum.reverse}
-    end
-  end
 end
