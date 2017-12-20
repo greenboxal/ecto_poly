@@ -104,7 +104,7 @@ defmodule EctoPoly do
       defp load(unquote(name), fields) do
         result =
           unquote(value_type)
-          |> Ecto.Schema.__unsafe_load__(fields |> IO.inspect |> Map.new, &EctoPoly.load_value/2)
+          |> Ecto.Schema.__unsafe_load__(fields |> Map.new, &EctoPoly.load_value/2)
 
         {:ok, result}
       end

@@ -1,7 +1,7 @@
 defmodule EctoPoly.Mixfile do
   use Mix.Project
 
-  @version "1.0.2"
+  @version "1.0.3"
   @github "https://github.com/greenboxal/phoenix_bert"
 
   def project do
