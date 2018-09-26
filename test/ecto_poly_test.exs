@@ -59,6 +59,7 @@ defmodule EctoPolyTest do
     test "when saving and loading" do
       date = DateTime.utc_now()
       dates = [NaiveDateTime.utc_now(), NaiveDateTime.utc_now()]
+      day = Date.utc_today()
       time_by_name = %{
         "lol" => Time.utc_now(),
         "wtf" => Time.utc_now(),
@@ -74,6 +75,7 @@ defmodule EctoPolyTest do
               key_secret: "secret",
               date: date,
               dates: dates,
+              the_day: day,
               time_by_name: time_by_name,
               price: Decimal.new(10.00),
             }
@@ -90,6 +92,7 @@ defmodule EctoPolyTest do
           key_secret: "secret",
           date: date,
           dates: dates,
+          the_day: day,
           time_by_name: time_by_name,
           price: Decimal.new(10.00),
         }

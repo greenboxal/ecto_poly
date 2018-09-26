@@ -6,6 +6,7 @@ defmodule EctoPoly.TwilioSmsProvider do
     field :key_secret, :string
     field :date, :utc_datetime
     field :dates, {:array, :naive_datetime}
+    field :the_day, :date
     field :time_by_name, {:map, :time}
     field :price, :decimal
   end

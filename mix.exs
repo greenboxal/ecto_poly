@@ -1,7 +1,7 @@
 defmodule EctoPoly.Mixfile do
   use Mix.Project
 
-  @version "1.0.3"
+  @version "1.0.4"
   @github "https://github.com/greenboxal/phoenix_bert"
 
   def project do
@@ -29,7 +29,7 @@ defmodule EctoPoly.Mixfile do
       {:ecto, "~> 2.0"},
       {:postgrex, "~> 0.11"},
       {:poison, "~> 3.0"},
-      {:ex_doc, "~> 0.15", only: :docs},
+      {:ex_doc, "~> 0.19", only: :docs},
       {:inch_ex, ">= 0.0.0", only: :docs},
     ]
   end
@@ -52,7 +52,7 @@ defmodule EctoPoly.Mixfile do
   end
 
   defp aliases do
-    ["test": ["ecto.create --quiet", "ecto.migrate", "test"]]
+    [test: ["ecto.create --quiet", "ecto.migrate", "test"]]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]

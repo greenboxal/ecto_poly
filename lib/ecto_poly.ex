@@ -216,7 +216,7 @@ defmodule EctoPoly do
   end
   defp do_transform_dump(:naive_datetime, {{year, month, day}, {hour, minute, second, microsecond}}) do
     result =
-      %NaiveDateTime{year: year, month: month, day: day,		
+      %NaiveDateTime{year: year, month: month, day: day,
         hour: hour, minute: minute, second: second, microsecond: {microsecond, 6}}
         |> NaiveDateTime.to_iso8601
 
@@ -224,10 +224,17 @@ defmodule EctoPoly do
   end
   defp do_transform_dump(:utc_datetime, {{year, month, day}, {hour, minute, second, microsecond}}) do
     result =
-      %DateTime{year: year, month: month, day: day,		
-        hour: hour, minute: minute, second: second, microsecond: {microsecond, 6},		
+      %DateTime{year: year, month: month, day: day,
+        hour: hour, minute: minute, second: second, microsecond: {microsecond, 6},
         std_offset: 0, utc_offset: 0, zone_abbr: "UTC", time_zone: "Etc/UTC"}
         |> DateTime.to_iso8601
+
+    {:ok, result}
+  end
+  defp do_transform_dump(:date, {year, month, day}) do
+    result =
+      %Date{year: year, month: month, day: day}
+        |> Date.to_iso8601
 
     {:ok, result}
   end
@@ -260,6 +267,14 @@ defmodule EctoPoly do
     }, _} <- value |> DateTime.from_iso8601
     do
       {:ok, {{year, month, day}, {hour, minute, second, microsecond}}}
+    end
+  end
+  defp do_transform_load(:date, value) do
+    with {:ok, %{
+      year: year, month: month, day: day,
+    }, _} <- value |> Date.from_iso8601
+    do
+      {:ok, {year, month, day}}
     end
   end
   defp do_transform_load(_, value), do: {:ok, value}
