@@ -11,8 +11,8 @@ defmodule EctoPoly.Mixfile do
       version: @version,
       elixir: "~> 1.5",
       app: :ecto_poly,
-      start_permanent: Mix.env == :prod,
-      elixirc_paths: elixirc_paths(Mix.env),
+      start_permanent: Mix.env() == :prod,
+      elixirc_paths: elixirc_paths(Mix.env()),
       package: package(),
       aliases: aliases(),
       deps: deps(),
@@ -26,13 +26,17 @@ defmodule EctoPoly.Mixfile do
 
   defp deps do
     [
-      {:ecto, "~> 2.0"},
-      {:postgrex, "~> 0.11"},
-      {:poison, "~> 3.0"},
+      {:ecto, ">= 2.0.0"},
+      {:postgrex, "~> 0.11", only: [:dev, :test]},
+      {:jason, "~> 1.1"},
       {:ex_doc, "~> 0.19", only: :docs},
-      {:inch_ex, ">= 0.0.0", only: :docs},
-    ]
+      {:inch_ex, ">= 0.0.0", only: :docs}
+    ] ++ deps(Mix.env())
   end
+
+  defp deps(env) when env in [:dev, :test], do: [{:ecto_sql, "~> 3.0"}]
+
+  defp deps(_), do: [{:ecto, "~> 3.0"}]
 
   defp package do
     [
@@ -56,5 +60,5 @@ defmodule EctoPoly.Mixfile do
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
-  defp elixirc_paths(_),     do: ["lib"]
+  defp elixirc_paths(_), do: ["lib"]
 end
