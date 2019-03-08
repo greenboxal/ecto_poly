@@ -3,6 +3,7 @@ defmodule EctoPolyTest do
 
   use EctoPoly.TestCase
 
+  alias Ecto.Changeset
   alias EctoPoly.{TestRepo, TestSchema, TestEmailChannel, TestSmsChannel, TwilioSmsProvider}
 
   describe "with simple struct" do
@@ -159,5 +160,85 @@ defmodule EctoPolyTest do
 
     refute changeset.valid?
     assert [channel: {"is invalid", _}] = changeset.errors
+  end
+
+  describe "cast_poly" do
+    test "not a poly type" do
+      params = %{
+        channel: %{
+          number: "0123456789"
+        }
+      }
+
+      assert_raise ArgumentError, "invalid type: unknown", fn ->
+        %TestSchema{}
+        |> Changeset.cast(params, [])
+        |> EctoPoly.cast(:channel, :unknown)
+      end
+    end
+
+    test "valid by name" do
+      number = "0123456789"
+
+      params = %{
+        channel: %{
+          number: number
+        }
+      }
+
+      result =
+        %TestSchema{}
+        |> Changeset.cast(params, [])
+        |> EctoPoly.cast(:channel, :sms)
+        |> TestRepo.insert!()
+
+      assert match?(%TestSchema{channel: %TestSmsChannel{number: ^number}}, result)
+    end
+
+    test "valid by type" do
+      number = "0123456789"
+
+      params = %{
+        channel: %{
+          number: number
+        }
+      }
+
+      result =
+        %TestSchema{}
+        |> Changeset.cast(params, [])
+        |> EctoPoly.cast(:channel, TestSmsChannel)
+        |> TestRepo.insert!()
+
+      assert match?(%TestSchema{channel: %TestSmsChannel{number: ^number}}, result)
+    end
+
+    test "invalid changeset" do
+      number = "123456789"
+
+      params = %{
+        channel: %{
+          number: number
+        }
+      }
+
+      result =
+        %TestSchema{}
+        |> Changeset.cast(params, [])
+        |> EctoPoly.cast(:channel, TestSmsChannel)
+        |> TestRepo.insert()
+
+      assert match?(
+               {:error,
+                %Changeset{
+                  changes: %{
+                    channel: %Changeset{
+                      errors: [number: {"number must start with '0'", []}]
+                    }
+                  }
+                }},
+               result
+             )
+    end
   end
 end

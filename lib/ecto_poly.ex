@@ -3,6 +3,8 @@ defmodule EctoPoly do
   Creates a polymorphic embedded type
   """
 
+  alias Ecto.Changeset
+
   @doc """
   # Arguments
 
@@ -43,11 +45,15 @@ defmodule EctoPoly do
 
       @type t :: unquote(union_type)
 
+      alias Ecto.Changeset
+
       def type, do: :map
 
       EctoPoly.__casters__(unquote(types))
       EctoPoly.__dumpers__(unquote(types))
       EctoPoly.__loaders__(unquote(types))
+
+      def __types__, do: unquote(types)
 
       def load(data) when is_map(data) do
         name =
@@ -88,6 +94,31 @@ defmodule EctoPoly do
     |> Enum.map(&loader/1)
   end
 
+  @doc """
+  Casts the given poly with the changeset parameters.
+  """
+  @spec cast(Changeset.t(), atom, atom) :: Changeset.t()
+  def cast(%Changeset{data: data, types: types}, _key, _typename)
+      when data == nil or types == nil do
+    raise ArgumentError,
+          "cast/2 expects the changeset to be cast. " <>
+            "Please call cast/4 before calling cast/2"
+  end
+
+  def cast(%Changeset{params: params, types: types} = changeset, key, typename) do
+    case types[key] do
+      nil ->
+        raise ArgumentError, "invalid field: #{key}"
+
+      poly ->
+        {key, param_key} = cast_key(key)
+        do_cast(changeset, key, params[param_key], poly, typename)
+    end
+  end
+
+  ###
+  ### Priv
+  ###
   defp caster({_, value_type}) do
     quote do
       def cast(value = %unquote(value_type){}), do: {:ok, value}
@@ -257,4 +288,82 @@ defmodule EctoPoly do
   defp do_transform_load(:date, value), do: value |> Date.from_iso8601()
 
   defp do_transform_load(_, value), do: {:ok, value}
+
+  def cast_key(key) when is_atom(key) do
+    {key, Atom.to_string(key)}
+  end
+
+  defp do_cast(changeset, _, nil, _, _), do: changeset
+
+  defp do_cast(changeset, key, param, poly, typename) do
+    case poly.cast(param) do
+      {:ok, value} ->
+        Changeset.put_change(changeset, key, value)
+
+      :error ->
+        type =
+          poly.__types__
+          |> Enum.find(fn
+            {^typename, _type} -> true
+            {_, ^typename} -> true
+            _ -> false
+          end)
+          |> case do
+            nil -> nil
+            {_, module} -> module
+          end
+
+        do_changeset(changeset, key, param, type, typename)
+    end
+  end
+
+  defp do_changeset(_changeset, _key, _param, nil, typename) do
+    raise ArgumentError, "invalid type: #{typename}"
+  end
+
+  defp do_changeset(changeset, key, param, module, _typename) do
+    %Changeset{changes: changes, data: data} = changeset
+    on_cast = on_cast_default(module)
+    original = Map.get(data, key)
+
+    struct =
+      case original do
+        nil -> struct(module)
+        _ -> original
+      end
+
+    {change, valid?} =
+      case on_cast.(struct, param) do
+        %Changeset{valid?: false} = change ->
+          {change, false}
+
+        change ->
+          {Changeset.apply_changes(change), changeset.valid?}
+      end
+
+    %{changeset | changes: Map.put(changes, key, change), valid?: valid?}
+  end
+
+  defp on_cast_default(module) do
+    fn struct, param ->
+      try do
+        module.changeset(struct, param)
+      rescue
+        e in UndefinedFunctionError ->
+          case System.stacktrace() do
+            [{^module, :changeset, args_or_arity, _} | _]
+            when args_or_arity == 2
+            when length(args_or_arity) == 2 ->
+              raise ArgumentError, """
+              the module #{inspect(module)} does not define a changeset/2
+              function, which is used by EctoPoly.cast/3. You need to
+              implement the #{module}.changeset/2 function.
+              """
+
+            stacktrace ->
+              reraise e, stacktrace
+          end
+      end
+    end
+  end
 end
