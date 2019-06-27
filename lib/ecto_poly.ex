@@ -98,21 +98,24 @@ defmodule EctoPoly do
   Casts the given poly with the changeset parameters.
   """
   @spec cast(Changeset.t(), atom, atom) :: Changeset.t()
-  def cast(%Changeset{data: data, types: types}, _key, _typename)
+  @spec cast(Changeset.t(), atom, atom, Keyword.t()) :: Changeset.t()
+  def cast(changes, key, typename, opts \\ [])
+
+  def cast(%Changeset{data: data, types: types}, _key, _typename, _opts)
       when data == nil or types == nil do
     raise ArgumentError,
           "cast/2 expects the changeset to be cast. " <>
             "Please call cast/4 before calling cast/2"
   end
 
-  def cast(%Changeset{params: params, types: types} = changeset, key, typename) do
+  def cast(%Changeset{params: params, types: types} = changeset, key, typename, opts) do
     case types[key] do
       nil ->
         raise ArgumentError, "invalid field: #{key}"
 
       poly ->
         {key, param_key} = cast_key(key)
-        do_cast(changeset, key, params[param_key], poly, typename)
+        do_cast(changeset, key, params[param_key], poly, typename, opts)
     end
   end
 
@@ -293,9 +296,9 @@ defmodule EctoPoly do
     {key, Atom.to_string(key)}
   end
 
-  defp do_cast(changeset, _, nil, _, _), do: changeset
+  defp do_cast(changeset, _, nil, _, _, _), do: changeset
 
-  defp do_cast(changeset, key, param, poly, typename) do
+  defp do_cast(changeset, key, param, poly, typename, opts) do
     case poly.cast(param) do
       {:ok, value} ->
         Changeset.put_change(changeset, key, value)
@@ -313,17 +316,17 @@ defmodule EctoPoly do
             {_, module} -> module
           end
 
-        do_changeset(changeset, key, param, type, typename)
+        do_changeset(changeset, key, param, type, typename, opts)
     end
   end
 
-  defp do_changeset(_changeset, _key, _param, nil, typename) do
+  defp do_changeset(_changeset, _key, _param, nil, typename, _opts) do
     raise ArgumentError, "invalid type: #{typename}"
   end
 
-  defp do_changeset(changeset, key, param, module, _typename) do
+  defp do_changeset(changeset, key, param, module, _typename, opts) do
     %Changeset{changes: changes, data: data} = changeset
-    on_cast = on_cast_default(module)
+    on_cast = on_cast_fun(module, opts)
     original = Map.get(data, key)
 
     struct =
@@ -342,6 +345,18 @@ defmodule EctoPoly do
       end
 
     %{changeset | changes: Map.put(changes, key, change), valid?: valid?}
+  end
+
+  defp on_cast_fun(module, opts) do
+    opts
+    |> Keyword.get(:with)
+    |> case do
+      nil ->
+        on_cast_default(module)
+
+      fun ->
+        fun
+    end
   end
 
   defp on_cast_default(module) do
