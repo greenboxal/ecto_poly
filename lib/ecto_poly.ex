@@ -40,7 +40,8 @@ defmodule EctoPoly do
     union_type = build_union_type(types)
 
     quote do
-      @behaviour Ecto.Type
+      use Ecto.Type
+
       @type_field unquote(type_field)
 
       @type t :: unquote(union_type)
