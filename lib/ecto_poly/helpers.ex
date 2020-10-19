@@ -3,14 +3,13 @@ defmodule EctoPoly.Helpers do
 
   @spec dependency_vsn_match?(atom(), binary()) :: boolean()
   def dependency_vsn_match?(dep, req) do
-    case :application.get_key(dep, :vsn) do
-      {:ok, actual} ->
-        actual
-        |> List.to_string()
-        |> Version.match?(req)
-
-      _any ->
-        false
+    with :ok <- Application.ensure_loaded(dep),
+    vsn when is_list(vsn) <- Application.spec(dep, :vsn) do
+      vsn
+      |> List.to_string()
+      |> Version.match?(req)
+    else
+      _ -> false
     end
   end
 end

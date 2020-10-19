@@ -95,9 +95,7 @@ defmodule EctoPoly do
     |> Enum.map(&loader/1)
   end
 
-  @doc """
-  Casts the given poly with the changeset parameters.
-  """
+  @doc "Casts the given poly with the changeset parameters."
   @spec cast(Changeset.t(), atom, atom) :: Changeset.t()
   @spec cast(Changeset.t(), atom, atom, Keyword.t()) :: Changeset.t()
   def cast(changes, key, typename, opts \\ [])
@@ -120,9 +118,8 @@ defmodule EctoPoly do
     end
   end
 
-  ###
-  ### Priv
-  ###
+  ## Private.
+
   defp caster({_, value_type}) do
     quote do
       def cast(value = %unquote(value_type){}), do: {:ok, value}
@@ -164,17 +161,24 @@ defmodule EctoPoly do
   end
 
   defp dumper(true, name, value_type) do
+    embedded_structure =
+      if __MODULE__.Helpers.dependency_vsn_match?(:ecto, "~> 3.5.0") do
+        quote(do: {:parameterized, Ecto.Embedded, var!(struct)})
+      else
+        quote(do: {:embed, var!(struct)})
+      end
+
     quote do
       def dump(value = %unquote(value_type){}) do
-        embed_type =
-          {:embed,
-           %Ecto.Embedded{
-             cardinality: :one,
-             related: unquote(value_type),
-             field: :data
-           }}
+        var!(struct) = %Ecto.Embedded{
+          cardinality: :one,
+          field: :data,
+          related: unquote(value_type),
+        }
 
-        with {:ok, result} <- Ecto.Type.dump(embed_type, value, &EctoPoly.dump_value/2),
+        embedded_type = unquote(embedded_structure)
+
+        with {:ok, result} <- Ecto.Type.dump(embedded_type, value, &EctoPoly.dump_value/2),
              result = result |> Map.put(@type_field, Atom.to_string(unquote(name))) do
           {:ok, result}
         end
