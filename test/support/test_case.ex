@@ -3,9 +3,8 @@ defmodule EctoPoly.TestCase do
 
   setup tags do
     ensure_started!()
-    
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(EctoPoly.TestRepo)
 
+    :ok = Ecto.Adapters.SQL.Sandbox.checkout(EctoPoly.TestRepo)
     unless tags[:async] do
       Ecto.Adapters.SQL.Sandbox.mode(EctoPoly.TestRepo, {:shared, self()})
     end
@@ -13,7 +12,6 @@ defmodule EctoPoly.TestCase do
     :ok
   end
 
-  defp ensure_started!() do
-    Mix.Ecto.ensure_started(EctoPoly.TestRepo, [])
-  end
+  defp ensure_started!(),
+    do: Mix.EctoSQL.ensure_started(EctoPoly.TestRepo, [])
 end

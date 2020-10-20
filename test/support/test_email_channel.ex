@@ -1,5 +1,3 @@
 defmodule EctoPoly.TestEmailChannel do
-  defstruct [
-    :email
-  ]
+  defstruct [:email]
 end
