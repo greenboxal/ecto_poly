@@ -1,16 +1,18 @@
 defmodule EctoPoly.Mixfile do
   use Mix.Project
 
-  @version "1.0.5"
-  @github "https://github.com/greenboxal/phoenix_bert"
+  @version "1.0.6"
+  @name "Ecto Poly"
+  @description "Polymorphic embeds for Ecto. Forked from ecto_poly to make it compatible with Ecto 3.5+."
+  @github "https://github.com/tableturn/ecto_poly"
 
   def project(),
     do: [
-      name: "Ecto Poly",
-      description: "Polymorphic embeds for Ecto",
+      name: @name,
+      description: @description,
       version: @version,
       elixir: "~> 1.5",
-      app: :ecto_poly,
+      app: :ecto_poly_armory,
       start_permanent: Mix.env() == :prod,
       elixirc_paths: elixirc_paths(Mix.env()),
       package: package(),
@@ -34,7 +36,7 @@ defmodule EctoPoly.Mixfile do
   defp package(),
     do: [
       licenses: ["MIT"],
-      maintainers: ["Jonathan Lima"],
+      maintainers: ["Pierre Martin", "Jean Parpaillon"],
       links: %{"Github" => @github}
     ]
 
